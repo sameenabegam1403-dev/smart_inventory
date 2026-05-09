@@ -1,11 +1,16 @@
 # app.py  — Flask REST API for Smart Inventory Tracker
 # Install: pip install flask mysql-connector-python
 
-from flask import Flask, jsonify, request, abort
+from flask import Flask, jsonify,request, abort
 from flask_cors import CORS  # Import this
+from flask import render_template
 import mysql.connector
 app = Flask(__name__)
 CORS(app)  # Enable it for the whole app
+
+@app.route('/')
+def home():
+    return render_template('index.html')
 
 DB_CONFIG = {
     "host":     "localhost",
