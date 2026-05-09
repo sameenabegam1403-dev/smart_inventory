@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart Inventory Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #222; }
+
+  header { background: #1a3c5e; color: #fff; padding: 18px 32px;
+           display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 1.3rem; font-weight: 600; }
+
+  .container { max-width: 1100px; margin: 24px auto; padding: 0 20px; }
+
+  /* Metric cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+           gap: 16px; margin-bottom: 28px; }
+  .card  { background: #fff; border-radius: 12px; padding: 20px 24px;
+           border-left: 4px solid #1a3c5e; box-shadow: 0 1px 4px #0001; }
+  .card .label { font-size: 12px; color: #666; margin-bottom: 8px; text-transform: uppercase; }
+  .card .value { font-size: 28px; font-weight: 700; color: #1a3c5e; }
+  .card.warn .value { color: #d97706; }
+  .card.ok   .value { color: #16a34a; }
+
+  /* Table */
+  .section { background: #fff; border-radius: 12px; padding: 20px 24px;
+             margin-bottom: 24px; box-shadow: 0 1px 4px #0001; }
+  .section h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px;
+                color: #1a3c5e; display: flex; align-items: center; gap: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th    { text-align: left; padding: 8px 12px; border-bottom: 2px solid #e5e7eb;
+          color: #555; font-weight: 600; }
+  td    { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }
+  tr:hover td { background: #f9fafb; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px;
+           font-size: 11px; font-weight: 600; }
+  .badge.ok   { background: #dcfce7; color: #166534; }
+  .badge.warn { background: #fef9c3; color: #854d0e; }
+  .badge.low  { background: #fee2e2; color: #991b1b; }
+
+  /* Form */
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+  select, input[type=number] { padding: 8px 12px; border: 1px solid #d1d5db;
+    border-radius: 8px; font-size: 14px; background: #f9fafb; }
+  button { padding: 8px 20px; background: #1a3c5e; color: #fff;
+           border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  button:hover { background: #234e75; }
+  .msg { margin-top: 10px; font-size: 13px; color: #16a34a; }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+  <h1>Smart Inventory &amp; Warehouse Tracker</h1>
+</header>
+
+<div class="container">
+
+  <!-- Summary Cards -->
+  <div class="cards" id="cards">
+    <div class="card"><div class="label">Warehouses</div><div class="value" id="c-wh">—</div></div>
+    <div class="card"><div class="label">Total Units</div><div class="value" id="c-units">—</div></div>
+    <div class="card warn"><div class="label">Low Stock Items</div><div class="value" id="c-low">—</div></div>
+    <div class="card"><div class="label">Inventory Value (₹)</div><div class="value" id="c-val">—</div></div>
+  </div>
+
+  <!-- Stock Table -->
+  <div class="section">
+    <h2>📦 Current Stock</h2>
+    <select id="wh-filter" onchange="loadStock()">
+      <option value="">All Warehouses</option>
+    </select>
+    <table>
+      <thead><tr><th>Product</th><th>Category</th><th>Quantity</th><th>Reorder Level</th><th>Status</th></tr></thead>
+      <tbody id="stock-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Low Stock Alerts -->
+  <div class="section">
+    <h2>⚠️ Low Stock Alerts</h2>
+    <table>
+      <thead><tr><th>Product</th><th>Warehouse</th><th>Qty</th><th>Reorder</th><th>Supplier</th><th>Contact</th></tr></thead>
+      <tbody id="low-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Restock Form -->
+  <div class="section">
+    <h2>🔄 Restock Product</h2>
+    <div class="form-row">
+      <select id="rs-wh"><option value="">Select Warehouse</option></select>
+      <input type="number" id="rs-pid" placeholder="Product ID" min="1">
+      <input type="number" id="rs-qty" placeholder="Quantity"   min="1">
+      <button onclick="doRestock()">Restock</button>
+    </div>
+    <div class="msg" id="rs-msg"></div>
+  </div>
+
+  <!-- Place Order Form -->
+  <div class="section">
+    <h2>🛒 Place Order</h2>
+    <div class="form-row">
+      <select id="ord-wh"><option value="">Select Warehouse</option></select>
+      <input type="number" id="ord-pid" placeholder="Product ID" min="1">
+      <input type="number" id="ord-qty" placeholder="Quantity"   min="1">
+      <button onclick="doOrder()">Place Order</button>
+    </div>
+    <div class="msg" id="ord-msg"></div>
+  </div>
+
+</div>
+
+<script>
+// Use the IP you found in Step 1
+const API = `http://127.0.0.1:5000/api`; // ← Flask backend URL
+
+/* ── Load Dashboard Summary ───────────────────────── */
+async function loadDashboard() {
+  const res  = await fetch(`${API}/dashboard`);
+  const data = await res.json();
+  document.getElementById("c-wh").textContent    = data.length;
+  document.getElementById("c-units").textContent = data.reduce((s,r)=>s+Number(r.total_units || 0), 0).toLocaleString();
+  document.getElementById("c-low").textContent   = data.reduce((s,r)=>s+r.low_stock_items,0);
+  document.getElementById("c-val").textContent   =
+      "₹" + data.reduce((s,r)=>s+Number(r.inventory_value),0).toLocaleString("en-IN", {maximumFractionDigits:0});
+}
+
+/* ── Load Warehouses into selects ─────────────────── */
+async function loadWarehouses() {
+  const res  = await fetch(`${API}/warehouses`);
+  const data = await res.json();
+  const opts = data.map(w=>`<option value="${w.warehouse_id}">${w.name}</option>`).join("");
+  document.getElementById("wh-filter").innerHTML += opts;
+  document.getElementById("rs-wh").innerHTML     += opts;
+  document.getElementById("ord-wh").innerHTML    += opts;
+}
+
+/* ── Load Stock Table ─────────────────────────────── */
+async function loadStock() {
+  const wid = document.getElementById("wh-filter").value;
+  const url = wid ? `${API}/stock?warehouse_id=${wid}` : `${API}/stock`;
+  const res  = await fetch(url);
+  const data = await res.json();
+  document.getElementById("stock-body").innerHTML = data.map(r => {
+    const badge = r.low_stock
+      ? '<span class="badge low">Low</span>'
+      : '<span class="badge ok">OK</span>';
+    return `<tr>
+      <td>${r.product}</td><td>${r.category}</td>
+      <td>${r.quantity.toLocaleString()}</td>
+      <td>${r.reorder_level}</td><td>${badge}</td>
+    </tr>`;
+  }).join("");
+}
+
+/* ── Load Low-Stock Alerts ────────────────────────── */
+async function loadLowStock() {
+  const res  = await fetch(`${API}/low-stock`);
+  const data = await res.json();
+  document.getElementById("low-body").innerHTML = data.map(r=>`<tr>
+    <td>${r.name}</td><td>${r.warehouse}</td>
+    <td><strong>${r.quantity}</strong></td>
+    <td>${r.reorder_level}</td>
+    <td>${r.supplier}</td>
+    <td>${r.contact}</td>
+  </tr>`).join("");
+}
+
+/* ── Restock Action ───────────────────────────────── */
+async function doRestock() {
+  const body = {
+    warehouse_id: +document.getElementById("rs-wh").value,
+    product_id:   +document.getElementById("rs-pid").value,
+    quantity:     +document.getElementById("rs-qty").value
+  };
+  const res = await fetch(`${API}/restock`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  document.getElementById("rs-msg").textContent = "✓ " + data.message;
+  loadStock(); loadDashboard(); loadLowStock();
+}
+
+/* ── Place Order Action ───────────────────────────── */
+async function doOrder() {
+  const body = {
+    warehouse_id: +document.getElementById("ord-wh").value,
+    product_id:   +document.getElementById("ord-pid").value,
+    quantity:     +document.getElementById("ord-qty").value
+  };
+  const res = await fetch(`${API}/order`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  document.getElementById("ord-msg").textContent =
+    `✓ Order #${data.order_id} placed — Status: ${data.status}`;
+  loadStock(); loadDashboard(); loadLowStock();
+}
+
+/* ── Initialise ───────────────────────────────────── */
+(async () => {
+  await loadWarehouses();
+  await Promise.all([loadDashboard(), loadStock(), loadLowStock()]);
+})();
+</script>
+</body>
+</html>
