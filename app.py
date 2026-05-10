@@ -5,18 +5,21 @@ from flask import Flask, jsonify,request, abort
 from flask_cors import CORS  # Import this
 from flask import render_template
 import mysql.connector
+import os
 app = Flask(__name__)
-CORS(app)  # Enable it for the whole app
+CORS(app) 
+from dotenv import load_dotenv
+load_dotenv() # Enable it for the whole app
 
 @app.route('/')
 def home():
     return render_template('index.html')
-
 DB_CONFIG = {
-    "host":     "localhost",
-    "user":     "root",
-    "password": "sam@2007#1234$",   # ← change this
-    "database": "smart_inventory"
+    "host": os.getenv("DB_HOST"),
+    "port": int(os.getenv("DB_PORT")),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME")
 }
 
 def get_connection():
